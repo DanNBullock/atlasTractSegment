@@ -23,7 +23,9 @@ from dipy.workflows.align import ApplyTransformFlow
 from dipy.io.image import save_nifti
 from dipy.io.image import load_nifti
 from dipy.io.stateful_tractogram import Space, StatefulTractogram
-from dipy.io.streamline import load_tractogram, save_tractogram
+from dipy.io.streamline import load_tractogram, save_tractogram, Streamlines
+from dipy.tracking.utils import target  
+from dipy.tracking.streamline import Streamlines
 
 #load an example atlas 
 atlasPath='/media/dan/storage/gitDir/Pandora-WhiteMatterAtlas/Recobundles/Recobundles.nii.gz'
@@ -68,10 +70,26 @@ firstMaskNifti=nib.Nifti1Image((data>0).astype(np.uint8), affine=affine)
 
 firstMaskNifti
 comboROIBool=wmaPyTools.segmentationTools.segmentTractMultiROI(testStreamlines.streamlines, [firstMaskNifti], [True], ['any'])
-testStreamlines.streamlines
+outStreamsGenerator=target(testStreamlines.streamlines, firstMaskNifti.affine, firstMaskNifti.get_fdata(), include=True)
+outStreams=Streamlines(outStreamsGenerator)
 
-segmentedTract = StatefulTractogram(testStreamlines.streamlines[comboROIBool], testAnatomy, Space.RASMM)
-save_tractogram( segmentedTract,'testSegmentedTract.trk')
+#perform quickbundles on outstreams
+bundlesOut=qwBundles(outStreams)
+
+#exclude all streamllines not returned by these centroids
+=nearROI(bundlesOubundlesOut.centroids,True,'all')
+
+
+
+boundaryRois=wmaPyTools.roiTools.boundaryROIPlanesFromMask(firstMaskNifti)
+comboROIBool=wmaPyTools.segmentationTools.segmentTractMultiROI(outStreams, [firstMaskNifti], [True], ['any'])
+
+
+#threshold on cluster centroid nodes in mask
+
+
+segmentedTract = StatefulTractogram(outStreams, testAnatomy, Space.RASMM)
+save_tractogram( segmentedTract,'testSegmentedTract.trk',bbox_valid_check=False)
 
 # #use tractProbabilityMap2SegCriteria to get a dictionary of segmentation criteria
 # segCriteriaDict=wmaPyTools.segmentationTools.tractProbabilityMap2SegCriteria(warpedFirstMaskNifti)
