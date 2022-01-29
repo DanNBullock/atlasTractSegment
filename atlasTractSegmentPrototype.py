@@ -139,8 +139,8 @@ def skeletonizeMask(maskNifti):
     fout = os.path.join(outDir, fname)
     nib.save(skeletonMaskNifti,fout)
     
-def decomposeTractSkeleton(tractSkeletonNifti):
-    
+def skeletonizedNiftiToAdjacencyMatrix(tractSkeletonNifti):
+        
     import networkx as nx
     import matplotlib.pyplot as plt
     import matplotlib
@@ -176,6 +176,11 @@ def decomposeTractSkeleton(tractSkeletonNifti):
             #in short, we are making an adjacency matrix here with this loop
             voxelAdjacencyMatrix[iVoxels,currentAdjacents[iAdjacentItems]]=True
     
+    return voxelAdjacencyMatrix
+            
+def pruneNetworkUntilSkeleton(inputBinarizedAdjacencyMatrix):
+    import networkx as nx
+    voxelAdjacencyMatrix=inputBinarizedAdjacencyMatrix
     #initialize a list that will hold indexes of bridge nodes
     dontDeleteThese=[]
     #initialize a run counter
@@ -253,7 +258,7 @@ def decomposeTractSkeleton(tractSkeletonNifti):
         #find the old identity of this index
         toRemove_OrigIndex=currentMapping[currentToRemove_CurrentIndex]
         #add these to the list of those to be removed
-        toRemove_OrigIndexs=np.hstack((toRemove_OrigIndex,toRemove_OrigIndex))
+        toRemove_OrigIndexs=np.hstack((toRemove_OrigIndexs,toRemove_OrigIndex))
         
         currentViableToRemove_OrigIndexes=list(set(startingIndexes)-set(list(currentDontDeleteThese_OrigIndexes)).union(set(list(toRemove_OrigIndex))))
         #initialize a vector to hold 
@@ -261,23 +266,159 @@ def decomposeTractSkeleton(tractSkeletonNifti):
         currentMatrixNodes=list(set(list(currentDontDeleteThese_OrigIndexes)).union(set(list(currentViableToRemove_OrigIndexes))))
         
         runs=runs+1
-        print ('run ' + str(runs))()
+        print ('run ' + str(runs))
         
+    return toRemove_OrigIndexs ,  voxelAdjacencyMatrix[np.ix_(currentMatrixNodes,currentMatrixNodes)]
+
+
+#test plot the matrix
+covertedGraph=nx.convert_matrix.from_numpy_matrix(voxelAdjacencyMatrix)
+fig=matplotlib.pyplot.figure(figsize=(20, 20))
+pos=nx.drawing.layout.spring_layout(covertedGraph)
+colorMap=matplotlib.cm.get_cmap('jet')
+subgraph_centrality_measures = nx.subgraph_centrality(covertedGraph)
+nodeColors=[colorMap(iValue/np.max(list(subgraph_centrality_measures.values()))) for iValue in list(subgraph_centrality_measures.values())]
+nx.draw(covertedGraph,node_color=nodeColors, pos=pos, with_labels=False,node_shape='.',node_size=300)
+matplotlib.pyplot.savefig('subgraph_centrality_culled.svg',dpi=300)
+
+#now identify the tree structure of the graph
+#networkx.algorithms.tree.decomposition.junction_tree?
+#alternatively, start at the endpoints, move inward, and note the order you get them all in
+
+
+
+
+        
+    
+# def decomposeTractSkeleton(tractSkeletonNifti):
+    
+#     import networkx as nx
+#     import matplotlib.pyplot as plt
+#     import matplotlib
+    
+#     import numpy as np
+#     #total neighborhood (including self = 3 layers of 9 voxels = 27 voxels)
+#     #self = dist 0; max items = 1; 26 remain
+#     #ortho adjacent = dist 1; max items = 6 (each face of center voxel); 20 remain
+#     #radial ortho adjacent= dist 2; max items = 12; (diagonal adjacents for each ortho adjacent; some sort of combinatorial thing here ); 8 remain
+#     #diagonal adjacent = dist 3; max items = 8 (the verticies of the 3x3 cube); 0 remain
+#     #1 + 6 + 12 + 8 = 27 -> OK
+#     acceptableNeighborLimit=3
+#     skeletonImgIndexes=np.asarray(np.where(tractSkeletonNifti.get_data())).T
+#     #begin here
+#     anyConnectivity_IndexList=[]
+#     for iSkeletonVoxels in skeletonImgIndexes:
+#         voxelDistances=np.subtract(skeletonImgIndexes,iSkeletonVoxels)
+#         distSums=np.sum(np.abs(voxelDistances),axis=1)
+#         #orthoAdjacent_IndexList=orthoAdjacent_IndexList+[list(np.where(np.all([0<distSums, distSums==1],axis=0))[0])]
+#         #radialOrthoAdjacent_IndexList=radialOrthoAdjacent_IndexList+[list(np.where(np.all([0<distSums, distSums==2],axis=0))[0])]
+#         #diagonalAdjacent_IndexList=diagonalAdjacent_IndexList+[list(np.where(np.all([0<distSums, distSums==3],axis=0))[0])]
+#         anyConnectivity_IndexList=anyConnectivity_IndexList+[list(np.where(np.all([0<distSums, distSums<=3],axis=0))[0])]
+
+#     #generous connectivity matrix
+#     voxelAdjacencyMatrix=np.zeros([len(anyConnectivity_IndexList),len(anyConnectivity_IndexList)],dtype=bool)
+#     #iterate across skeleton voxels
+#     for iVoxels in range(len(anyConnectivity_IndexList)):
+#         #get voxels adjacent to current voxel
+#         currentAdjacents=anyConnectivity_IndexList[iVoxels]
+#         #iterate across these voxels
+#         for iAdjacentItems in range(len(anyConnectivity_IndexList[iVoxels])):
+#             #set these entries to True
+#             #in short, we are making an adjacency matrix here with this loop
+#             voxelAdjacencyMatrix[iVoxels,currentAdjacents[iAdjacentItems]]=True
+    
+#     #initialize a list that will hold indexes of bridge nodes
+#     dontDeleteThese=[]
+#     #initialize a run counter
+#     runs=0
+#     #create a vector of indexes correspondingto the initially input matrix
+#     startingIndexes=list(range(len(voxelAdjacencyMatrix)))
+#     #identify the bridge nodes in the initial graph formed by the skeleton
+    
+#     #begin by converting the matrix to a graph
+#     covertedGraph=nx.convert_matrix.from_numpy_matrix(voxelAdjacencyMatrix)
+#     #create generator for identifying bridge connections
+#     #https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.bridges.bridges.html#networkx.algorithms.bridges.bridges
+#     graphBridges=nx.bridges(covertedGraph)
+#     #generate a list of these
+#     graphBridgesHolder=list(graphBridges)
+#     #convert these to an array of voxels that are not to be deleted
+#     dontDeleteThese=np.unique(graphBridgesHolder)
+#     #viableRemovalInitial=list(set(list(range(len(voxelAdjacencyMatrix))))-set(list(dontDeleteThese)))
+#     #Initialize an empty array to hold values we will be deleting
+#     toRemove_OrigIndexs=np.empty(0,dtype=int)
+#     #identify those nodes in the initial graph which are viable for removal
+#     currentViableToRemove_OrigIndexes=list(set(startingIndexes)-set(list(dontDeleteThese)).union(set(list(toRemove_OrigIndexs))))
+#     #initialize a vector to hold 
+#     #currentViableRemoval=list(set(list(dontDeleteThese)).union(set(list(viableRemovalInitial)))-set(list(toRemoveIndexes)))
+#     currentMatrixNodes=list(set(list(dontDeleteThese)).union(set(list(currentViableToRemove_OrigIndexes))-set(list(toRemove_OrigIndexs))))
+#     #set up the initial variable
+#     currentViableToRemove=currentViableToRemove_OrigIndexes
+#     #Continue to remove nodes until the only voxels that remain are "bridge" nodes
+#     #i.e. only endpoints and connecting voxels, no cycles
+#     runs=0
+#     while len(currentViableToRemove_OrigIndexes) > 0:
+#         #convert the matrix to a graph
+#         covertedGraph=nx.convert_matrix.from_numpy_matrix(voxelAdjacencyMatrix[np.ix_(currentMatrixNodes,currentMatrixNodes)])
+#         #generate a vector containing the current indexes
+#         rawCurrentIndexes=list(range(len(covertedGraph)))
+#         #find their mapping back to the origonal identities
+#         currentMapping=list(set(startingIndexes)-set(list(toRemove_OrigIndexs)))
+#         #thus the ith node in the CURRENT graph IS ACTUALLY
+#         #the ith graph in the ORIGIONAL graph.
+        
+        
+#         #create generator for identifying bridge connections
+#         #https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.bridges.bridges.html#networkx.algorithms.bridges.bridges
+#         graphBridges=nx.bridges(covertedGraph)
+#         #generate a list of these
+#         graphBridgesHolder=list(graphBridges)
+#         #convert these to an array of voxels that are not to be deleted
+#         currentDontDeleteThese=np.unique(graphBridgesHolder)
+#         #map these back to their origional indexes
+#         currentDontDeleteThese_OrigIndexes=[currentMapping[iCurrentDontDeleteThese] for iCurrentDontDeleteThese in currentDontDeleteThese]
+#         #remove these from the indexes currently avaiable for removal
+#         currentViableToRemove_OrigIndexes=list(set(currentViableToRemove_OrigIndexes)-set(currentDontDeleteThese_OrigIndexes))
+#         #convert these into the current indexes
+#         currentViableToRemove_CurrentIndexes=np.empty(0,dtype=int)
+#         for iValues in range(len(currentViableToRemove_OrigIndexes)):
+#             #for each of the ORIGINAL INDEXES  of the currentViableToRemove nodes
+#             #find the index of is node in the currentMapping / current covertedGraph
+#             currentLocationBoolVec=[currentMapping==currentViableToRemove_OrigIndexes[iValues]]
+#             #find out where this boolean vector is true            
+#             currentLocation=np.where(currentLocationBoolVec)[0][0]
+#             #hztack that with the current list of viable to remove CURRENT INDEXES
+#             currentViableToRemove_CurrentIndexes=np.hstack((currentViableToRemove_CurrentIndexes,currentLocation))
+        
+#         #obtain the subgraph connectivity values for each of EXISTING nodes (i.e. not removed from matrix)
+#         #https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.centrality.subgraph_centrality.html#networkx.algorithms.centrality.subgraph_centrality
+#         subgraph_centrality_measures = nx.subgraph_centrality(covertedGraph)
+#         #round these in order to eliminate stochasticity?
+#         roundedMeasures=np.round(list(subgraph_centrality_measures.values()),decimals=2)
+#         #find those mesures representing viable removal targets
+#         currentMeasureTargets=roundedMeasures[currentViableToRemove_CurrentIndexes]
+#         #find the index of IN THE VIABLE TARGETS  of the minimum value (just one at the time)
+#         currentRemove_CurrentViableToRemoveIndex=np.where(currentMeasureTargets==np.min(currentMeasureTargets))[0][0]
+#         #find the indentity of this node in the current graph
+#         currentToRemove_CurrentIndex=currentViableToRemove_CurrentIndexes[currentRemove_CurrentViableToRemoveIndex]
+#         #find the old identity of this index
+#         toRemove_OrigIndex=currentMapping[currentToRemove_CurrentIndex]
+#         #add these to the list of those to be removed
+#         toRemove_OrigIndexs=np.hstack((toRemove_OrigIndex,toRemove_OrigIndex))
+        
+#         currentViableToRemove_OrigIndexes=list(set(startingIndexes)-set(list(currentDontDeleteThese_OrigIndexes)).union(set(list(toRemove_OrigIndex))))
+#         #initialize a vector to hold 
+#         #currentViableRemoval=list(set(list(dontDeleteThese)).union(set(list(viableRemovalInitial)))-set(list(toRemoveIndexes)))
+#         currentMatrixNodes=list(set(list(currentDontDeleteThese_OrigIndexes)).union(set(list(currentViableToRemove_OrigIndexes))))
+        
+#         runs=runs+1
+#         print ('run ' + str(runs))()
+        
+#     return
       
         
         
-        sortedUniqueMeasures=np.unique(roundedMeasures)
-        
-        
-        
-        threshVal=sortedUniqueMeasures[3]
-        diffVec=roundedMeasures-threshVal
-        tooLow=np.where(diffVec<0)[0]
-        forbidRemove=dontDeleteThese+list(tooLow)
-        
-        candidates=np.where(roundedMeasures>=threshVal)
-        
-        
+
         
        
         
@@ -300,12 +441,7 @@ def decomposeTractSkeleton(tractSkeletonNifti):
         #         voxelAdjacencyGenerousMatrix=np.delete(voxelAdjacencyGenerousMatrix, toDeleteNodes[iToRemove], 1)
         # print('Run ' +str(runs)+ 'complete')
     
-    fig=matplotlib.pyplot.figure(figsize=(20, 20))
-    pos=nx.drawing.layout.spring_layout(covertedGraph)
-    colorMap=matplotlib.cm.get_cmap('jet')
-    nodeColors=[colorMap(iValue/np.max(list(subgraph_centrality_measures.values()))) for iValue in list(subgraph_centrality_measures.values())]
-    nx.draw(covertedGraph,node_color=nodeColors, pos=pos, with_labels=False,node_shape='.',node_size=300)
-    matplotlib.pyplot.savefig('subgraph_centrality_oneRemoved.svg',dpi=300)
+
     
          
         #also identify those nodes which are endpoints, and thus have a degree of zero (these are not to be deteted either)
