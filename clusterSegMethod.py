@@ -363,7 +363,7 @@ warpedMasks=warpVolumetricAtlasToSubject(targetAnatomyNifti,atlasAnatomyNifti,at
 mode=['all' for warpedMasks in warpedMasks]
 include=[True for warpedMasks in warpedMasks]
 tol=[.5 for warpedMasks in warpedMasks]
-testOutput=segmentViaCentroidClusters(clusters, warpedMasks, multipleMode='distinct',returnAs='bool',  mode=mode, include=include, tol=tol)
+testOutput=segmentViaCentroidClusters(streamlines, warpedMasks, multipleMode='distinct',returnAs='bool',  mode=mode, include=include, tol=tol)
 
 import wmaPyTools.visTools
 
