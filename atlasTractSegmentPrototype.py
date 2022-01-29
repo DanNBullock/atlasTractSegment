@@ -82,6 +82,13 @@ boundaryRois=wmaPyTools.roiTools.boundaryROIPlanesFromMask(firstMaskNifti)
 comboROIBool=wmaPyTools.segmentationTools.segmentTractMultiROI(outStreams, [firstMaskNifti], [True], ['any'])
 
 
+
+testAnatomyPath='/media/dan/storage/data/proj-5ffc884d2ba0fba7a7e89132/sub-100206/dt-neuro-anat-t1w.id-6099aad9ddc68808d13c689b/t1.nii.gz'
+testAnatomy=nib.load(testAnatomyPath)
+
+
+
+
 #threshold on cluster centroid nodes in mask
 
 
@@ -224,11 +231,13 @@ def decomposeTractSkeleton(tractSkeletonNifti):
         #convert these into the current indexes
         currentViableToRemove_CurrentIndexes=np.empty(0,dtype=int)
         for iValues in range(len(currentViableToRemove_OrigIndexes)):
-            currentIndexLocationBoolVec=[iCurrentMappingValues==currentViableToRemove_OrigIndexes[iValues] for iCurrentMappingValues in currentMapping]
-            currentLocation=np.where(currentIndexLocationBoolVec)[0][0]
+            #for each of the ORIGINAL INDEXES  of the currentViableToRemove nodes
+            #find the index of is node in the currentMapping / current covertedGraph
+            currentLocationBoolVec=[currentMapping==currentViableToRemove_OrigIndexes[iValues]]
+            #find out where this boolean vector is true            
+            currentLocation=np.where(currentLocationBoolVec)[0][0]
+            #hztack that with the current list of viable to remove CURRENT INDEXES
             currentViableToRemove_CurrentIndexes=np.hstack((currentViableToRemove_CurrentIndexes,currentLocation))
-       
-        
         
         #obtain the subgraph connectivity values for each of EXISTING nodes (i.e. not removed from matrix)
         #https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.centrality.subgraph_centrality.html#networkx.algorithms.centrality.subgraph_centrality
@@ -307,4 +316,4 @@ def decomposeTractSkeleton(tractSkeletonNifti):
         
         #identify the ORIGIONAL and CURRENT indexes that are available for removal
         #viableRemovalCurrentIndexes=list(set(list(range(len(subgraph_centrality_measures))))-set(list(dontDeleteThese)))
-      
+     
